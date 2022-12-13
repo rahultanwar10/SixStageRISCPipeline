@@ -1,0 +1,22 @@
+module datadependency(instruction,clk, ex_sel1, ma_sel1, wb_sel1, ex_sel2, ma_sel2, wb_sel2);
+
+
+input [15:0] instruction;
+output reg ex_sel, ma_sel, wb_sel;
+
+reg [15:0] buffer [0:3]
+
+always@(posedge clk) begin
+	buffer[3] = buffer[2];
+	buffer[2] = buffer[1];
+	buffer[1] = buffer[0];
+	buffer[0] = instruction;
+	
+	
+	
+	
+end
+
+
+
+endmodule

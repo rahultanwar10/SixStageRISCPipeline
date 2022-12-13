@@ -1,0 +1,104 @@
+module pipeline(clk, rst);
+
+input clk, rst;			
+
+// instruction fetch stage
+reg [15:0] if_id_instr, if_id_pc;
+wire [15:0] pc, instruction, r7;
+instr_mem instruction_mem (pc,instruction);
+assign pc = r7;
+
+always @ (posedge clk) begin
+	if_id_instr <= instruction;
+	if_id_pc <= pc;
+end
+
+// instruction decode stage
+reg [15:0] id_rr_pc;
+reg [2:0] id_rr_ra, id_rr_rb, id_rr_rc;
+wire [2:0] reg_a, reg_b, reg_c;
+reg [1:0] id_rr_sel4;
+wire [1:0] alu_b;
+reg id_rr_reg_write_en, id_rr_datamem_read_en, id_rr_datamem_write_en, id_rr_mem_alu;
+wire reg_write_en, datamem_write_en, datamem_read_en, mem_alu;
+reg [5:0] id_rr_alu_op;
+wire [5:0] alu_op; 
+
+instruction_decoder instr_dec(if_id_instr, reg_a, reg_b, reg_c, alu_b, reg_write_en, datamem_write_en, datamem_read_en, mem_alu, alu_op);
+
+always @ (posedge clk) begin
+	id_rr_pc <= if_id_pc;
+	id_rr_ra <= reg_a;
+	id_rr_rb <= reg_b;
+	id_rr_rc <= reg_c;
+	id_rr_sel4 <= alu_b;
+	id_rr_reg_write_en <= reg_write_en;
+	id_rr_datamem_read_en <= datamem_read_en;
+	id_rr_datamem_write_en <= datamem_write_en;
+	id_rr_mem_alu <= mem_alu;
+	id_rr_alu_op <= alu_op;
+end
+
+// register read stage
+reg [15:0] rr_ex_pc;
+reg [15:0] rr_ex_reg_a_data, rr_ex_reg_b_data;
+reg [5:0] rr_ex_alu_op;
+reg [1:0] rr_ex_sel4;
+reg rr_ex_reg_write_en, rr_ex_datamem_read_en, rr_ex_datamem_write_en,rr_ex_mem_alu;
+register_file reg_file(rst, clk, ma_wb_reg_write_en, id_rr_rc, ma_wb_out, id_rr_ra, reg_a_data, id_rr_rb, reg_b_data, r7);//reg_write_data
+
+always @ (posedge clk) begin
+	rr_ex_pc <= id_rr_pc;
+	rr_ex_reg_a_data <= reg_a_data;
+	rr_ex_reg_b_data <= reg_b_data;
+	rr_ex_alu_op <= id_rr_alu_op;
+	rr_ex_sel4 <= id_rr_sel4;
+	rr_ex_reg_write_en <= id_rr_reg_write_en;
+	rr_ex_datamem_read_en <= id_rr_datamem_read_en;
+	rr_ex_datamem_write_en <= id_rr_datamem_write_en;
+	rr_ex_mem_alu <= id_rr_mem_alu;
+end
+
+//execution stage
+
+reg ex_ma_reg_write_en;
+reg [15:0]ex_ma_out;
+reg ex_ma_carry,ex_ma_zero;
+reg [15:0]rb_left;
+reg [15:0]reg_bl_data;
+reg ex_ma_datamem_read_en, ex_ma_datamem_write_en, ex_ma_mem_alu;
+
+assign rb_left = {rr_ex_reg_b_data[14:0], 1'b0};
+alu alu_unit(rr_ex_reg_a_data, reg_bl_data, rr_ex_alu_op, old_carry, out, carry, zero, block_write_en);// old_carry
+mux4 mux(rb_left, rr_ex_reg_b_data, c, d, rr_ex_sel4, reg_bl_data);
+
+always @ (posedge clk) begin
+	ex_ma_reg_write_en <= block_write_en & rr_ex_reg_write_en;
+	ex_ma_out <= out;
+	ex_ma_carry <= carry;
+	ex_ma_zero <= zero;
+	ex_ma_datamem_read_en <= rr_ex_datamem_read_en;
+	ex_ma_datamem_write_en <= rr_ex_datamem_write_en;
+	ex_ma_mem_alu <= rr_ex_mem_alu;
+end
+
+// memory access stage
+
+reg ma_wb_reg_write_en;
+reg [15:0] ma_wb_out;
+reg ma_wb_carry, ma_wb_zero;
+reg ma_wb_mem_alu;
+
+always @(posedge clk) begin
+	ma_wb_reg_write_en <= ex_ma_reg_write_en;
+	ma_wb_out <= ex_ma_out;
+	ma_wb_carry <= ex_ma_carry;
+	ma_wb_zero <= ma_wb_zero;
+	ma_wb_mem_alu <= ex_ma_mem_alu;
+end
+
+// write back stage
+
+
+
+endmodule
